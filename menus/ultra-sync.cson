@@ -1,0 +1,22 @@
+# See https://atom.io/docs/latest/hacking-atom-package-word-count#menus for more details
+'context-menu':
+  'atom-text-editor': [
+    {
+      'label': 'Toggle ultra-sync'
+      'command': 'ultra-sync:toggle'
+    }
+  ]
+'menu': [
+  {
+    'label': 'Packages'
+    'submenu': [
+      'label': 'ultra-sync'
+      'submenu': [
+        {
+          'label': 'Toggle'
+          'command': 'ultra-sync:toggle'
+        }
+      ]
+    ]
+  }
+]
