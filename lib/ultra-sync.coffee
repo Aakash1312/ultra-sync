@@ -11,6 +11,7 @@ module.exports = UltraSync =
   editor : null
   paneView : null
   editorView : null
+  finalOccurence : null
   activate: (state) ->
     @ultraSyncView = new UltraSyncView(state.ultraSyncViewState)
     @modalPanel = atom.workspace.addModalPanel(item: @ultraSyncView.getElement(), visible: false)
@@ -20,6 +21,7 @@ module.exports = UltraSync =
     # Register command that toggles this view
     @mapList = []
     @offset = []
+    @finalOccurence = []
     @subscriptions.add atom.commands.add 'atom-workspace', 'ultra-sync:toggle': => @toggle()
 
   deactivate: ->
@@ -46,8 +48,6 @@ module.exports = UltraSync =
     #   @modalPanel.show()
 
   sync: ->
-    # console.log $(@paneView.innerHTML)
-    # html = $(@paneView.innerHTML)
     html = @paneView.querySelector('.scroll-view')
     nodes = (div for div in html)[0...]
     nodes = @cleanNodes(nodes)
@@ -160,13 +160,10 @@ module.exports = UltraSync =
     return null
 
   connect: (start, end, nodes, i) ->
-    if start == 1
-      console.log i
     countLines = 0
     buf = start
     while start <= end
       if @mapList[start] != null
-        @mapList[start] = nodes[i]
         @offset[start] = countLines
         countLines = countLines + 1
       start = start + 1
@@ -176,8 +173,42 @@ module.exports = UltraSync =
         @offset[start] = @offset[start]/countLines
       start = start + 1
 
+  nearVision: (buf, i, nodes) ->
+    counter = i
+    line = @editor.lineTextForBufferRow buf
+    line = line?.replace(/(\<[^>]*\>)*/ig, '')
+    matches = line?.match /[A-Za-z0-9]+/ig
+    nodeSize = nodes.length
+    while counter < nodeSize
+      text = nodes[counter].innerText
+      text = text.replace(/(\<[^>]*\>)+/ig, '')
+      matchesNode = text.match /[A-Za-z0-9]+/ig
+      k = @matchWords2(matches, matchesNode, 0)
+      if k != -1
+        j = 0
+        giter = 0
+        maxiter = 0
+        size = matchesNode.length
+        while maxiter < 10
+          if giter >= 5
+            return true
+          localLine = @editor.lineTextForBufferRow (buf + maxiter)
+          localLine = localLine?.replace(/(\<[^>]*\>)*/ig, '')
+          localMatches = localLine?.match /[A-Za-z0-9]+/ig
+          l = @matchWords2(localMatches, matchesNode, j)
+          if l >= size
+            return true
+          else
+            if l >= 1
+              j = l
+              giter = giter + 1
+          maxiter = maxiter + 1
+      counter = counter + 1
+    return false
+
   checkIfNodeExists: (nodes, length, i, buf) ->
     text = nodes[i].innerText
+    text = text.replace(/(\<[^>]*\>)+/ig, '')
     matches2 = text.match /[A-Za-z0-9]+/ig
     if not matches2
       return -1
@@ -191,23 +222,28 @@ module.exports = UltraSync =
       if nullIterations > 0.25 * size
         if j/size > 0.8
           return lastSuccessful
-        if matched
-          @connect(buf, lastSuccessful, nodes, i)
+        # if matched
+          # @connect(buf, lastSuccessful, nodes, i)
         return -1
       line = @editor.lineTextForBufferRow counter
+      line = line?.replace(/(\<[^>]*\>)*/ig, '')
       matches = line?.match /[A-Za-z0-9]+/ig
       if matches
         k = @matchWords2(matches, matches2, j)
         if k >= size
+          @mapList[counter] = nodes[i]
           return counter
         if k >= 1
           lastSuccessful = counter
           j = k
-          # @mapList[counter] = nodes[i]
+          @mapList[counter] = nodes[i]
           if not matched
             matched = true
         else
           if not @mapList[counter]
+            if j/size > 0.8
+              if @nearVision(counter, i+1, nodes)
+                return lastSuccessful
             nullIterations = nullIterations + 1
             @mapList[counter] = null
       else
@@ -215,45 +251,71 @@ module.exports = UltraSync =
       counter = counter + 1
     if j/size > 0.8
       return lastSuccessful
-    if matched
-      @connect(buf, lastSuccessful, nodes, i)
+    # if matched
+      # @connect(buf, lastSuccessful, nodes, i)
     return -1
+
+  cleanMapList: ()->
+    counter = 0
+    while @mapList[counter] == -1
+      counter = counter + 1
+    lastNode = @mapList[counter]
+    firstLastNode = lastNode
+    size = @mapList.length
+    while counter < size
+      if @mapList[counter] != lastNode and @mapList[counter] != -1 and @mapList[counter] != null
+        lastNode = @mapList[counter]
+        @mapList[counter] = -1
+      counter = counter + 1
+    counter = 0
+    lastNode = firstLastNode
+    while counter < size
+      if @mapList[counter] == -1
+        @mapList[counter] = lastNode
+      else
+        lastNode = @mapList[counter]
+      counter = counter + 1
+    counter = 0
+    counter2 = 0
+    while counter < size
+      if @mapList[counter]
+        if @mapList[counter] != lastNode and @mapList[counter] != null
+          lastNode = @mapList[counter]
+          @connect(counter2, counter - 1, null, 0)
+          counter2 = counter
+      counter = counter + 1
 
   sync2: ->
     nodes = []
     nodes = (div for div in $(@paneView.childNodes))[0...]
     nodes = @cleanNodes(nodes)
-    i = 0
-    j = 0
     countLines = 0
-    actualCount = 0
-    prei = -2
-    prebuf =0
     buf = 0
+    i = 0
     lineSize = @editor.getLastBufferRow() + 1
     while buf < lineSize
       check = @isInNodes2(nodes, buf, @editor.getLastBufferRow() + 1, i)
       if check
         i = check["node"]
-        start = buf
-        end = check["line"]
-        countLines = 0
-        while start <= end
-          if @mapList[start] != null
-            @mapList[start] = nodes[i]
-            @offset[start] = countLines
-            countLines = countLines + 1
-          start = start + 1
-        start = buf
-        while start <= end
-          if @mapList[start] != null
-            @offset[start] = @offset[start]/countLines
-          start = start + 1
+        # start = buf
+        # end = check["line"]
+        # countLines = 0
+        # while start <= end
+        #   if @mapList[start] != null
+        #     # @mapList[start] = nodes[i]
+        #     @offset[start] = countLines
+        #     countLines = countLines + 1
+        #   start = start + 1
+        # start = buf
+        # while start <= end
+        #   if @mapList[start] != null
+        #     @offset[start] = @offset[start]/countLines
+        #   start = start + 1
         buf = check["line"]
         i = i + 1
       buf = buf + 1
-    console.log @mapList
-    console.log @offset
+    @cleanMapList()
+
   cleanNodes:(nodes) ->
     size = nodes.length
     tmpNodes = []
