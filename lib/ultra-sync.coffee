@@ -1,7 +1,7 @@
 UltraSyncView = require './ultra-sync-view'
 {CompositeDisposable} = require 'atom'
 {$, $$$, ScrollView} = require 'atom-space-pen-views'
-
+# Added maplists
 module.exports = UltraSync =
   ultraSyncView: null
   modalPanel: null
@@ -12,28 +12,52 @@ module.exports = UltraSync =
   paneView : null
   editorView : null
   holes : null
-
+  mapLists : null
+  offsets : null
+  synced : false
+  items : null
+  paneList : null
   activate: (state) ->
+    @mapLists = []
+    @offsets = []
+    @paneList =[]
     @ultraSyncView = new UltraSyncView(state.ultraSyncViewState)
-    @modalPanel = atom.workspace.addModalPanel(item: @ultraSyncView.getElement(), visible: false)
+    # @modalPanel = atom.workspace.addModalPanel(item: @ultraSyncView.getElement(), visible: false)
     # Events subscribed to in atom's system can be easily cleaned up with a CompositeDisposable
     @subscriptions = new CompositeDisposable
     # Register command that toggles this view
     @subscriptions.add atom.commands.add 'atom-workspace', 'ultra-sync:toggle': => @toggle()
+    @subscriptions.add atom.workspace.observeActivePaneItem (pane) =>
+      if atom.workspace.isTextEditor(pane)
+        @editor = pane
+      else
+        @paneView = atom.views.getView(pane)
 
   deactivate: ->
     @subscriptions.dispose()
     @ultraSyncView.destroy()
 
   toggle: ->
-    panes = atom.workspace.getPaneItems()
-    pane = panes[panes.length - 1]
     @editor = atom.workspace.getActiveTextEditor()
-    @paneView = atom.views.getView(pane)
-    @editorView = atom.views.getView(@editor)
-    @subscriptions.add @editorView.onDidChangeScrollTop => @ultraSync()
-    # @paneView.addEventListener("DOMSubtreeModified", (() => @sync()), {once:true})
-    @sync()
+    if @editor?
+      @editorView = atom.views.getView(@editor)
+      panes = atom.workspace.getPanes()
+      @items = panes[panes.length - 1].getItems()
+      if panes.length > 1
+        @mapLists[@editor.id] = []
+        @offsets[@editor.id] = []
+        pane = panes[panes.length - 1].activeItem
+        @paneList[@editor.id] = atom.views.getView(pane)
+        @paneView = atom.views.getView(pane)
+        config = { subtree: true, childList: true, characterData: true }
+        observer = new MutationObserver((mutation) => @sync() )
+        observer.observe(@paneView, config)
+        # @paneView.addEventListener("DOMSubtreeModified", (() => @sync()), {once:true})
+        @subscriptions.add @editorView.onDidChangeScrollTop => @ultraSync()
+        @subscriptions.add @editor.buffer.onDidStopChanging =>
+          @synced = false
+        @synced = false
+        @sync()
 
   matchWords: (A, B, j) ->
     if A? and B?
@@ -50,6 +74,34 @@ module.exports = UltraSync =
           iter = iter + 1
     return -1
 
+  matchWordsLatest: (A, B, textLine, textView, j) ->
+    if A? and B?
+      size1 = A.length
+      size2 = B.length
+      if j >= size2
+        return 0
+      else
+        iter = 0
+        while iter < 50 && j + iter < size2
+          if A[0] == B[j + iter]
+            if B[j+size1 + iter - 1] == A[size1 - 1]
+              return j + size1 + iter
+          iter = iter + 1
+      A = textLine.match /[A-Za-z]+/ig
+      B = textView.match /[A-Za-z]+/ig
+      if A? and B?
+        size3 = A.length
+        if size3/size1 > 0.3
+          size1 = size3
+          size2 = B.length
+          iter = 0
+          while iter < 50 && j + iter < size2
+            if A[0] == B[j + iter]
+              if B[j+size1 + iter - 1] == A[size1 - 1]
+                return j + size1 + iter
+            iter = iter + 1
+    return -1
+
   placeInNodes: (nodes, buf, length, i) ->
     size = nodes.length
     counter = i
@@ -64,14 +116,14 @@ module.exports = UltraSync =
     countLines = 0
     buf = start
     while start <= end
-      if @mapList[start] != null
-        @offset[start] = countLines
+      if @mapLists[@editor.id][start] != null
+        @offsets[@editor.id][start] = countLines
         countLines = countLines + 1
       start = start + 1
     start = buf
     while start <= end
-      if @mapList[start] != null
-        @offset[start] = @offset[start]/countLines
+      if @mapLists[@editor.id][start] != null
+        @offsets[@editor.id][start] = @offsets[@editor.id][start]/countLines
       start = start + 1
 
   nearVision: (buf, i, nodes) ->
@@ -81,10 +133,10 @@ module.exports = UltraSync =
     matches = line?.match /[A-Za-z0-9]+/ig
     nodeSize = nodes.length
     while counter < nodeSize
-      text = nodes[counter].innerText
+      text = nodes[counter].node.innerText
       text = text.replace(/(\<[^>]*\>)+/ig, '')
       matchesNode = text.match /[A-Za-z0-9]+/ig
-      k = @matchWords(matches, matchesNode, 0)
+      k = @matchWordsLatest(matches, matchesNode, line, text, 0)
       if k != -1
         j = 0
         giter = 0
@@ -96,7 +148,7 @@ module.exports = UltraSync =
           localLine = @editor.lineTextForBufferRow (buf + maxiter)
           localLine = localLine?.replace(/(\<[^>]*\>)*/ig, '')
           localMatches = localLine?.match /[A-Za-z0-9]+/ig
-          l = @matchWords(localMatches, matchesNode, j)
+          l = @matchWordsLatest(localMatches, matchesNode, localLine, text, j)
           if l >= size
             return true
           else
@@ -108,7 +160,8 @@ module.exports = UltraSync =
     return false
 
   checkIfNodeExists: (nodes, length, i, buf) ->
-    text = nodes[i].innerText
+    # console.log "START"
+    text = nodes[i].node.innerText
     text = text.replace(/(\<[^>]*\>)+/ig, '')
     matches2 = text.match /[A-Za-z0-9]+/ig
     if not matches2
@@ -117,89 +170,114 @@ module.exports = UltraSync =
     size = matches2.length
     counter = buf
     j = 0
+    matchedWords = 0
     lastSuccessful = -1
     nullIterations = 0
     while counter < length
-      if nullIterations > 0.25 * size
-        if j/size > 0.8
+      if nullIterations > 0.25 * length
+        # console.log "NULL"
+        if matchedWords/size > 0.8
           return lastSuccessful
         return -1
       line = @editor.lineTextForBufferRow counter
       line = line?.replace(/(\<[^>]*\>)*/ig, '')
       matches = line?.match /[A-Za-z0-9]+/ig
       if matches
-        k = @matchWords(matches, matches2, j)
+        # console.log matches
+        # console.log matches2
+        k = @matchWordsLatest(matches, matches2, line, text, j)
         if k >= size
-          @offset[counter] = j/size
-          @mapList[counter] = nodes[i]
+          # console.log "DONE"
+          @offsets[@editor.id][counter] = j/size
+          @mapLists[@editor.id][counter] = nodes[i]
           return counter
         if k >= 1
-          @offset[counter] = j/size
+          # console.log matches
+          # console.log "TADA"
+          @offsets[@editor.id][counter] = j/size
           lastSuccessful = counter
           j = k
-          @mapList[counter] = nodes[i]
+          matchedWords = matchedWords + matches.length
+          @mapLists[@editor.id][counter] = nodes[i]
         else
-          if not @mapList[counter]
-            if j/size > 0.8
+          if not @mapLists[@editor.id][counter]
+            if matchedWords/size > 0.8
+              # console.log "NEAR"
+              # console.log j
               if @nearVision(counter, i+1, nodes)
                 return lastSuccessful
             nullIterations = nullIterations + 1
-            @mapList[counter] = null
+            @mapLists[@editor.id][counter] = null
       else
-        @mapList[counter] = -1
+        @mapLists[@editor.id][counter] = -1
       counter = counter + 1
-    if j/size > 0.8
+    if matchedWords/size > 0.8
+      # console.log "GUH"
       return lastSuccessful
     return -1
 
   cleanMapList: (nodes)->
     counter = 0
-    while @mapList[counter] == -1 || @mapList[counter] == null
+    while @mapLists[@editor.id][counter] == -1 || @mapLists[@editor.id][counter] == null
       counter = counter + 1
-    lastNode = @mapList[counter]
+    lastNode = @mapLists[@editor.id][counter]
     firstLastNode = lastNode
-    size = @mapList.length
+    size = @mapLists[@editor.id].length
     @findHoles(nodes)
     lastSuccessfulCounter = 0
     # while counter < size
-    #   if @mapList[counter] and @mapList[counter] != -1
-    #     if @mapList[counter] != nodes[lastNode]
-    #       if not @holes[lastSuccessfulCounter] and @mapList[counter] != nodes[lastNode + 1]
-    #         @mapList[counter] = -1
+    #   if @mapLists[@editor.id][counter] and @mapLists[@editor.id][counter] != -1
+    #     if @mapLists[@editor.id][counter] != nodes[lastNode]
+    #       if not @holes[lastSuccessfulCounter] and @mapLists[@editor.id][counter] != nodes[lastNode + 1]
+    #         @mapLists[@editor.id][counter] = -1
     #       else
-    #         lastNode = @mapList[counter]
+    #         lastNode = @mapLists[@editor.id][counter]
     #     lastSuccessfulCounter = counter
     #   counter = counter + 1
     @stitchHoles(nodes)
-    counter = 0
+    # counter = 0
     # lastNode = firstLastNode
-    while counter < size
-      if @mapList[size - counter - 1] != null
-        if @mapList[size - counter - 1] == -1
-          @mapList[size - 1 -counter] = lastNode
-        else
-          lastNode = @mapList[size - 1 - counter]
-      counter = counter + 1
-    @interpolate(nodes)
+    # while counter < size
+    #   if @mapLists[@editor.id][size - counter - 1] != null
+    #     if @mapLists[@editor.id][size - counter - 1] == -1
+    #       @mapLists[@editor.id][size - 1 -counter] = lastNode
+    #     else
+    #       lastNode = @mapLists[@editor.id][size - 1 - counter]
+    #   counter = counter + 1
+    # @interpolate(nodes)
 
   sync: ->
-    nodes = []
-    @mapList = []
-    @offset = []
-    nodes = (div for div in @paneView.childNodes)[0...]
-    nodes = @cleanNodes(nodes)
-    countLines = 0
-    buf = 0
-    i = 0
-    lineSize = @editor.getLastBufferRow() + 1
-    while buf < lineSize
-      check = @placeInNodes(nodes, buf, @editor.getLastBufferRow() + 1, i)
-      if check
-        i = check["node"]
-        buf = check["line"]
-        i = i + 1
-      buf = buf + 1
-    @cleanMapList(nodes)
+    if not @synced
+      if @paneList[@editor.id] == null
+        return
+      nodes = []
+      nodeOrder = []
+      @mapLists[@editor.id] = []
+      @offsets[@editor.id] = []
+      nodes = (div for div in @paneList[@editor.id].childNodes)[0...]
+      countNodes = 0
+      nodes = @cleanNodes(nodes)
+      while countNodes < nodes.length
+        element = {}
+        element.id = countNodes
+        element.node = nodes[countNodes]
+        nodeOrder.push(element)
+        countNodes = countNodes + 1
+      nodes = nodeOrder
+      countLines = 0
+      buf = 0
+      i = 0
+      lineSize = @editor.getLastBufferRow() + 1
+      while buf < lineSize
+        check = @placeInNodes(nodes, buf, @editor.getLastBufferRow() + 1, i)
+        if check
+          i = check["node"]
+          buf = check["line"]
+          i = i + 1
+        buf = buf + 1
+      @cleanMapList(nodes)
+      @interpolate(nodes)
+      @synced = true
 
   findHoles:(nodes) ->
     @holes = []
@@ -209,22 +287,24 @@ module.exports = UltraSync =
     nodeSize = nodes.length
     lastSuccessfulCounter = 0
     while counter < size
-      if @mapList[counter]
-        lastNumber = counter
+      if @mapLists[@editor.id][counter] and @mapLists[@editor.id][counter] != -1
+        lastNumber = @mapLists[@editor.id][counter].id
         break
       counter = counter + 1
     lastSuccessfulCounter = counter
     while counter < size
-      if @mapList[counter] and @mapList[counter] != -1
-        if @mapList[counter] != nodes[lastNumber]
-          if @mapList[counter] == nodes[lastNumber + 1]
+      if @mapLists[@editor.id][counter] and @mapLists[@editor.id][counter] != -1
+        if @mapLists[@editor.id][counter].id > lastNumber
+          if @mapLists[@editor.id][counter] == nodes[lastNumber + 1]
             lastNumber = lastNumber + 1
           else
             temp = lastNumber
-            while @mapList[counter] != nodes[lastNumber] and lastNumber < nodeSize
-              lastNumber = lastNumber + 1
-            if lastNumber != nodeSize
-              @holes[lastSuccessfulCounter] = {'begin':temp + 1; 'end':lastNumber - 1; 'endRow':counter}
+            lastNumber = @mapLists[@editor.id][counter].id
+            @holes[lastSuccessfulCounter] = {'begin':temp + 1; 'end':lastNumber - 1; 'endRow':counter}
+        else
+          if @mapLists[@editor.id][counter].id != lastNumber
+            @mapLists[@editor.id][counter] = -1
+            # @mapLists[@editor.id][counter] = @mapLists[@editor.id][lastSuccessfulCounter]
         lastSuccessfulCounter = counter
       counter = counter + 1
 
@@ -238,17 +318,17 @@ module.exports = UltraSync =
         startNode = obj['begin']
         endNode = obj['end']
         nodeCounter = startNode
-        while nodeCounter < endNode
-          height = height + nodes[nodeCounter].getBoundingClientRect().height
+        while nodeCounter <= endNode
+          height = height + nodes[nodeCounter].node.getBoundingClientRect().height
           nodeCounter = nodeCounter + 1
-        ratio = height/nodes[startNode].getBoundingClientRect().height
+        ratio = height/nodes[startNode].node.getBoundingClientRect().height
         counter2 = counter + 1
         size = obj['endRow']
         countLines = 0
         delta = size - counter - 1
         while counter2 < size
-          @offset[counter2] = countLines * ratio / delta
-          @mapList[counter2] = nodes[startNode]
+          @offsets[@editor.id][counter2] = countLines * ratio / delta
+          @mapLists[@editor.id][counter2] = nodes[startNode]
           counter2 = counter2 + 1
           countLines = countLines + 1
         counter = obj['endRow']
@@ -256,25 +336,25 @@ module.exports = UltraSync =
         counter = counter + 1
 
   interpolate:(nodes) ->
-    size = @mapList.length
+    size = @mapLists[@editor.id].length
     counter = 1
     while counter < size
-      if not @offset[counter]?
+      if ((not @offsets[@editor.id][counter]?) || (@offsets[@editor.id][counter] == -1))
         counter2 = counter
         countLines = 0
-        while not @offset[counter2]? and counter2 < size
-          @offset[counter2] = countLines + 1
-          @mapList[counter2] = @mapList[counter - 1]
+        while (not @offsets[@editor.id][counter2]? || (@offsets[@editor.id][counter2] == -1))and counter2 < size
+          @offsets[@editor.id][counter2] = countLines + 1
+          @mapLists[@editor.id][counter2] = @mapLists[@editor.id][counter - 1]
           countLines = countLines + 1
           counter2 = counter2 + 1
-        if @mapList[counter2] == @mapList[counter - 1]
-          delta = @offset[counter2] - @offset[counter - 1]
+        if @mapLists[@editor.id][counter2] == @mapLists[@editor.id][counter - 1]
+          delta = @offsets[@editor.id][counter2] - @offsets[@editor.id][counter - 1]
         else
-          delta = 1 - @offset[counter - 1]
+          delta = 1 - @offsets[@editor.id][counter - 1]
         counter2 = counter
         iterator = 0
         while iterator < countLines
-          @offset[counter2 + iterator] = @offset[counter - 1] + @offset[counter2 + iterator] * delta/ countLines
+          @offsets[@editor.id][counter2 + iterator] = @offsets[@editor.id][counter - 1] + @offsets[@editor.id][counter2 + iterator] * delta/ countLines
           iterator = iterator + 1
         counter = counter2 + iterator
       else
@@ -290,15 +370,15 @@ module.exports = UltraSync =
         tmpNodes[k] = nodes[i]
         k = k + 1
       i = i + 1
-    tmpNodes
+    return tmpNodes
 
   ultraSync: () ->
-    @editor = atom.workspace.getActiveTextEditor()
-    rn = @editor.getFirstVisibleScreenRow()
-    top = @mapList[rn]
-    offf = @offset[rn]
-    if top != null and top != -1
-      offs = top.getBoundingClientRect().height
-      top.scrollIntoView()
-      offs = offs*offf + @paneView.scrollTop
-      @paneView.scrollTop = offs
+    if @editor and @paneView == @paneList[@editor.id]
+      rn = @editor.getFirstVisibleScreenRow()
+      top = @mapLists[@editor.id][rn]
+      offf = @offsets[@editor.id][rn]
+      if top != null and top != -1 and top?
+        offs = top.node.getBoundingClientRect().height
+        top.node.scrollIntoView()
+        offs = offs*offf + @paneList[@editor.id].scrollTop
+        @paneList[@editor.id].scrollTop = offs
