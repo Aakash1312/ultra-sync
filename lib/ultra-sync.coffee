@@ -109,7 +109,7 @@ module.exports = UltraSync =
           @paneList[@editor.id] = atom.views.getView(pane)
           @paneView = atom.views.getView(pane)
           config = { subtree: true, childList: true, characterData: true }
-          observer = new MutationObserver((mutation) => @sync() )
+          observer = new MutationObserver((mutation) => @indirectSync() )
           observer.observe(@paneView, config)
           @subscriptions2.add @editorView.onDidChangeScrollTop => @ultraSync()
           # @subscriptions2.add @editor.buffer.onDidStopChanging =>
@@ -117,6 +117,10 @@ module.exports = UltraSync =
           #     @synced = false
           # @synced = false
           @sync()
+
+  indirectSync: ->
+    if atom.config.get("ultra-sync.autosync")
+      @sync()
 
   matchWords: (A, B, j) ->
     if A? and B?
