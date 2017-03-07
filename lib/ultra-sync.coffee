@@ -112,10 +112,10 @@ module.exports = UltraSync =
           observer = new MutationObserver((mutation) => @sync() )
           observer.observe(@paneView, config)
           @subscriptions2.add @editorView.onDidChangeScrollTop => @ultraSync()
-          @subscriptions2.add @editor.buffer.onDidStopChanging =>
-            if atom.config.get("ultra-sync.autosync")
-              @synced = false
-          @synced = false
+          # @subscriptions2.add @editor.buffer.onDidStopChanging =>
+          #   if atom.config.get("ultra-sync.autosync")
+          #     @synced = false
+          # @synced = false
           @sync()
 
   matchWords: (A, B, j) ->
@@ -313,39 +313,41 @@ module.exports = UltraSync =
     @setStatusBar()
 
   sync: ->
-    if not @synced
-      if @paneList[@editor.id] == null
-        @ultraSyncView.destroy()
-        return
-      nodes = []
-      nodeOrder = []
-      @mapLists[@editor.id] = []
-      @offsets[@editor.id] = []
-      nodes = (div for div in @paneList[@editor.id].childNodes)[0...]
-      countNodes = 0
-      nodes = @cleanNodes(nodes)
-      while countNodes < nodes.length
-        element = {}
-        element.id = countNodes
-        element.node = nodes[countNodes]
-        nodeOrder.push(element)
-        countNodes = countNodes + 1
-      nodes = nodeOrder
-      countLines = 0
-      buf = 0
-      i = 0
-      lineSize = @editor.getLastBufferRow() + 1
-      while buf < lineSize
-        check = @placeInNodes(nodes, buf, @editor.getLastBufferRow() + 1, i, false)
-        if check
-          i = check["node"]
-          buf = check["line"]
-          i = i + 1
-        buf = buf + 1
-      @cleanMapList(nodes, false)
-      if atom.config.get("ultra-sync.interpolate")
-        @interpolate(nodes)
-      @synced = true
+    console.log "CALLED"
+    # if not @synced
+    console.log "KAIII"
+    if @paneList[@editor.id] == null
+      @ultraSyncView.destroy()
+      return
+    nodes = []
+    nodeOrder = []
+    @mapLists[@editor.id] = []
+    @offsets[@editor.id] = []
+    nodes = (div for div in @paneList[@editor.id].childNodes)[0...]
+    countNodes = 0
+    nodes = @cleanNodes(nodes)
+    while countNodes < nodes.length
+      element = {}
+      element.id = countNodes
+      element.node = nodes[countNodes]
+      nodeOrder.push(element)
+      countNodes = countNodes + 1
+    nodes = nodeOrder
+    countLines = 0
+    buf = 0
+    i = 0
+    lineSize = @editor.getLastBufferRow() + 1
+    while buf < lineSize
+      check = @placeInNodes(nodes, buf, @editor.getLastBufferRow() + 1, i, false)
+      if check
+        i = check["node"]
+        buf = check["line"]
+        i = i + 1
+      buf = buf + 1
+    @cleanMapList(nodes, false)
+    if atom.config.get("ultra-sync.interpolate")
+      @interpolate(nodes)
+    # @synced = true
     @setStatusBar()
 
   findHoles:(nodes) ->
