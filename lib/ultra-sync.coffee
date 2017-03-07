@@ -317,10 +317,7 @@ module.exports = UltraSync =
     @setStatusBar()
 
   sync: ->
-    console.log "CALLED"
-    # if not @synced
-    console.log "KAIII"
-    if @paneList[@editor.id] == null
+    if @paneList[@editor.id] == null or @paneList[@editor.id]?
       @ultraSyncView.destroy()
       return
     nodes = []
