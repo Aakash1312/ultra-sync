@@ -46,18 +46,21 @@ module.exports = UltraSync =
     @subscriptions.add atom.workspace.observeActivePaneItem (pane) =>
       if pane?
         if atom.workspace.isTextEditor(pane)
-          @editor = pane
-          if @paneList[@editor.id] != @paneView and atom.views.getView(@paneList[@editor.id]) != @paneView
-            @ultraSyncView.hide()
+          if not @isOnOtherSide[pane.id]?
+            @editor = pane
+            if @paneList[@editor.id] != @paneView and atom.views.getView(@paneList[@editor.id]) != @paneView
+              @ultraSyncView.hide()
+            else
+              @ultraSyncView.show()
           else
-            @ultraSyncView.show()
+            @paneView = atom.views.getView(pane)
         else
           if @isOnOtherSide[pane.id]?
             @paneView = atom.views.getView(pane)
-          if @paneList[@editor.id] != @paneView and atom.views.getView(@paneList[@editor.id]) != @paneView
-            @ultraSyncView.hide()
-          else
-            @ultraSyncView.show()
+            if @paneList[@editor.id] != @paneView and atom.views.getView(@paneList[@editor.id]) != @paneView
+              @ultraSyncView.hide()
+            else
+              @ultraSyncView.show()
     @consumeStatusBar()
 
   consumeStatusBar: (statusBar) ->
@@ -121,6 +124,14 @@ module.exports = UltraSync =
   indirectSync: ->
     if atom.config.get("ultra-sync.autosync")
       @sync()
+    else
+      @ultraSyncView.hide()
+
+  indirectSyncTextEditors: ->
+    if atom.config.get("ultra-sync.autosync")
+      @syncTextEditors()
+    else
+      @ultraSyncView.hide()
 
   matchWords: (A, B, j) ->
     if A? and B?
@@ -317,7 +328,7 @@ module.exports = UltraSync =
     @setStatusBar()
 
   sync: ->
-    if @paneList[@editor.id] == null or @paneList[@editor.id]?
+    if @paneList[@editor.id] == null or not @paneList[@editor.id]?
       @ultraSyncView.destroy()
       return
     nodes = []
