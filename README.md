@@ -6,15 +6,15 @@ For ultra-sync package to deliver its best, it is required that documents are we
 
 **Syncing asciidoc document**
 
-![ascii-doc](https://github.com/Aakash1312/ultra-sync/blob/Aakash1312-patch-5/gifs/ascii.gif?raw=true)
+![ascii-doc](https://github.com/Aakash1312/ImagesRepo/blob/master/gifs/ascii.gif?raw=true)
 
 **Syncing markdown document**
 
-![ascii-doc](https://github.com/Aakash1312/ultra-sync/blob/Aakash1312-patch-5/gifs/markdown.gif?raw=true)
+![markdown](https://github.com/Aakash1312/ImagesRepo/blob/master/gifs/markdown.gif?raw=true)
 
 **Syncing normal text document**
 
-![ascii-doc](https://github.com/Aakash1312/ultra-sync/blob/Aakash1312-patch-5/gifs/text.gif?raw=true)
+![normal](https://github.com/Aakash1312/ImagesRepo/blob/master/gifs/text.gif?raw=true)
 
 # How to use
 In order to use Ultra-Sync, open the documents to be synchronized in two different panes. Now toggle Ultra-Sync by pressing `ctrl-alt-e` or by using Packages menu in the atom window.
