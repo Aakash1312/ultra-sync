@@ -8,13 +8,21 @@
     }
   },
   "main": "./lib/ultra-sync",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "A short description of your package",
-  "keywords": ["ultra-sync", "scroll", "sync", "synchronization", "asciidoc", "asciidoctor", "markdown"],
+  "keywords": [
+    "ultra-sync",
+    "scroll",
+    "sync",
+    "synchronization",
+    "asciidoc",
+    "asciidoctor",
+    "markdown"
+  ],
   "activationCommands": {
     "atom-workspace": "ultra-sync:toggle"
   },
-    "author": {
+  "author": {
     "name": "Aakash Praliya",
     "email": "aakashpraliya13@gmail.com"
   },
