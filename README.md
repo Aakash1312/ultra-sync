@@ -19,6 +19,7 @@ For ultra-sync package to deliver its best, it is required that documents are we
 # How to use
 In order to use Ultra-Sync, open the documents to be synchronized in two different panes. Now toggle Ultra-Sync by pressing `ctrl-alt-e` or by using Packages menu in the atom window.
 Once toggled, documents can synchronized by pressing `ctrl-alt-d`.
+Press `ctrl-alt-e` again to deactivate the package.
 
 # Settings
 Ultra-Sync allows users to customize their experience. The package uses features like **autosync** to automatically synchronize scrolling as and when document is edited. Also, it uses **interpolation** technique to provide smoother scrolling.
