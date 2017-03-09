@@ -9,7 +9,7 @@
   },
   "main": "./lib/ultra-sync",
   "version": "1.0.0",
-  "description": "A short description of your package",
+  "description": "Ultra-Sync synchronizes scrolling of asciidoc, markdown and normal text documents",
   "keywords": [
     "ultra-sync",
     "scroll",
