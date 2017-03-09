@@ -6,7 +6,7 @@ For ultra-sync package to deliver its best, it is required that documents are we
 
 **Syncing asciidoc document**
 
-![ascii-doc](https://github.com/Aakash1312/ImagesRepo/blob/master/gifs/ascii2.gif?raw=true)
+![ascii-doc](https://s-media-cache-ak0.pinimg.com/originals/83/80/90/838090affef22c8c03dae3d31a00a186.gif)
 
 **Syncing markdown document**
 
