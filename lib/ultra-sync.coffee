@@ -1,11 +1,11 @@
 UltraSyncView = require './ultra-sync-view'
 {CompositeDisposable} = require 'atom'
 {$, $$$, ScrollView} = require 'atom-space-pen-views'
-# Added maplists
 module.exports = UltraSync =
   ultraSyncView: null
   modalPanel: null
   subscriptions: null
+  subscriptions2: null
   mapList : null
   offset : null
   editor : null
@@ -17,27 +17,80 @@ module.exports = UltraSync =
   synced : false
   paneList : null
   isOnOtherSide : null
+  sBar : null
+  activated : null
+  config:
+    interpolate:
+      type: 'boolean'
+      default: true
+      title: 'Interpolate'
+      description: 'Provide smooth scrolling. May reduce speed.'
+    autosync:
+      type: 'boolean'
+      default:true
+      title: 'Autosync'
+      description: 'Sync automatically when document changes. May reduce speed.'
+
   activate: (state) ->
     @mapLists = []
     @offsets = []
     @paneList =[]
     @isOnOtherSide = []
+    @activated = false
     @ultraSyncView = new UltraSyncView(state.ultraSyncViewState)
     # Events subscribed to in atom's system can be easily cleaned up with a CompositeDisposable
     @subscriptions = new CompositeDisposable
     # Register command that toggles this view
     @subscriptions.add atom.commands.add 'atom-workspace', 'ultra-sync:toggle': => @toggle()
+    @subscriptions.add atom.commands.add 'atom-workspace', 'ultra-sync:on': => @on()
     @subscriptions.add atom.workspace.observeActivePaneItem (pane) =>
-      if atom.workspace.isTextEditor(pane)
-        @editor = pane
-      else
-        @paneView = atom.views.getView(pane)
+      if pane?
+        if atom.workspace.isTextEditor(pane)
+          if not @isOnOtherSide[pane.id]?
+            @editor = pane
+            if @paneList[@editor.id] != @paneView and atom.views.getView(@paneList[@editor.id]) != @paneView
+              @ultraSyncView.hide()
+            else
+              @ultraSyncView.show()
+          else
+            @paneView = atom.views.getView(pane)
+        else
+          if @isOnOtherSide[pane.id]?
+            @paneView = atom.views.getView(pane)
+            if @paneList[@editor.id] != @paneView and atom.views.getView(@paneList[@editor.id]) != @paneView
+              @ultraSyncView.hide()
+            else
+              @ultraSyncView.show()
+    @consumeStatusBar()
+
+  consumeStatusBar: (statusBar) ->
+    if statusBar?
+      @sBar = statusBar
+
+  setStatusBar: () ->
+    if @sBar?
+      @ultraSyncView.destroy()
+      @sBar.addRightTile(item: @ultraSyncView.getSynced(), priority: 1000)
 
   deactivate: ->
     @subscriptions.dispose()
+    @subscriptions2.dispose()
     @ultraSyncView.destroy()
 
+  tempOFF: ->
+    @subscriptions2.dispose()
+    @ultraSyncView.destroy()
+    @paneList = []
+
   toggle: ->
+    if @activated
+      @tempOFF()
+      @activated = false
+    else
+      @subscriptions2 = new CompositeDisposable
+      @activated = true
+
+  on: ->
     @editor = atom.workspace.getActiveTextEditor()
     if @editor?
       @editorView = atom.views.getView(@editor)
@@ -49,22 +102,36 @@ module.exports = UltraSync =
         if atom.workspace.isTextEditor(pane)
           @isOnOtherSide[pane.id] = @editor
           @paneList[@editor.id] = pane
-          @subscriptions.add @editor.buffer.onDidStopChanging => @syncTextEditors()
-          @subscriptions.add pane.buffer.onDidStopChanging => @syncTextEditors()
+          @subscriptions2.add @editor.buffer.onDidStopChanging => @syncTextEditors()
+          @subscriptions2.add pane.buffer.onDidStopChanging => @syncTextEditors()
           @paneView = atom.views.getView(pane)
-          @subscriptions.add @editorView.onDidChangeScrollTop => @ultraSync()
+          @subscriptions2.add @editorView.onDidChangeScrollTop => @ultraSync()
           @syncTextEditors()
         else
+          @isOnOtherSide[pane.id] = 1
           @paneList[@editor.id] = atom.views.getView(pane)
           @paneView = atom.views.getView(pane)
           config = { subtree: true, childList: true, characterData: true }
-          observer = new MutationObserver((mutation) => @sync() )
+          observer = new MutationObserver((mutation) => @indirectSync() )
           observer.observe(@paneView, config)
-          @subscriptions.add @editorView.onDidChangeScrollTop => @ultraSync()
-          @subscriptions.add @editor.buffer.onDidStopChanging =>
-            @synced = false
-          @synced = false
+          @subscriptions2.add @editorView.onDidChangeScrollTop => @ultraSync()
+          # @subscriptions2.add @editor.buffer.onDidStopChanging =>
+          #   if atom.config.get("ultra-sync.autosync")
+          #     @synced = false
+          # @synced = false
           @sync()
+
+  indirectSync: ->
+    if atom.config.get("ultra-sync.autosync")
+      @sync()
+    else
+      @ultraSyncView.hide()
+
+  indirectSyncTextEditors: ->
+    if atom.config.get("ultra-sync.autosync")
+      @syncTextEditors()
+    else
+      @ultraSyncView.hide()
 
   matchWords: (A, B, j) ->
     if A? and B?
@@ -118,20 +185,6 @@ module.exports = UltraSync =
         return {"line":k; "node":counter}
       counter = counter + 1
     return null
-
-  calculateOffset: (start, end, nodes, i) ->
-    countLines = 0
-    buf = start
-    while start <= end
-      if @mapLists[@editor.id][start] != null
-        @offsets[@editor.id][start] = countLines
-        countLines = countLines + 1
-      start = start + 1
-    start = buf
-    while start <= end
-      if @mapLists[@editor.id][start] != null
-        @offsets[@editor.id][start] = @offsets[@editor.id][start]/countLines
-      start = start + 1
 
   nearVision: (buf, i, nodes, isEditor) ->
     counter = i
@@ -270,40 +323,44 @@ module.exports = UltraSync =
         i = i + 1
       buf = buf + 1
     @cleanMapList(nodes, true)
-    @interpolate(nodes)
+    if atom.config.get("ultra-sync.interpolate")
+      @interpolate(nodes)
+    @setStatusBar()
 
   sync: ->
-    if not @synced
-      if @paneList[@editor.id] == null
-        return
-      nodes = []
-      nodeOrder = []
-      @mapLists[@editor.id] = []
-      @offsets[@editor.id] = []
-      nodes = (div for div in @paneList[@editor.id].childNodes)[0...]
-      countNodes = 0
-      nodes = @cleanNodes(nodes)
-      while countNodes < nodes.length
-        element = {}
-        element.id = countNodes
-        element.node = nodes[countNodes]
-        nodeOrder.push(element)
-        countNodes = countNodes + 1
-      nodes = nodeOrder
-      countLines = 0
-      buf = 0
-      i = 0
-      lineSize = @editor.getLastBufferRow() + 1
-      while buf < lineSize
-        check = @placeInNodes(nodes, buf, @editor.getLastBufferRow() + 1, i, false)
-        if check
-          i = check["node"]
-          buf = check["line"]
-          i = i + 1
-        buf = buf + 1
-      @cleanMapList(nodes, false)
+    if @paneList[@editor.id] == null or not @paneList[@editor.id]?
+      @ultraSyncView.destroy()
+      return
+    nodes = []
+    nodeOrder = []
+    @mapLists[@editor.id] = []
+    @offsets[@editor.id] = []
+    nodes = (div for div in @paneList[@editor.id].childNodes)[0...]
+    countNodes = 0
+    nodes = @cleanNodes(nodes)
+    while countNodes < nodes.length
+      element = {}
+      element.id = countNodes
+      element.node = nodes[countNodes]
+      nodeOrder.push(element)
+      countNodes = countNodes + 1
+    nodes = nodeOrder
+    countLines = 0
+    buf = 0
+    i = 0
+    lineSize = @editor.getLastBufferRow() + 1
+    while buf < lineSize
+      check = @placeInNodes(nodes, buf, @editor.getLastBufferRow() + 1, i, false)
+      if check
+        i = check["node"]
+        buf = check["line"]
+        i = i + 1
+      buf = buf + 1
+    @cleanMapList(nodes, false)
+    if atom.config.get("ultra-sync.interpolate")
       @interpolate(nodes)
-      @synced = true
+    # @synced = true
+    @setStatusBar()
 
   findHoles:(nodes) ->
     @holes = []
@@ -330,7 +387,6 @@ module.exports = UltraSync =
         else
           if @mapLists[@editor.id][counter].id != lastNumber
             @mapLists[@editor.id][counter] = -1
-            # @mapLists[@editor.id][counter] = @mapLists[@editor.id][lastSuccessfulCounter]
         lastSuccessfulCounter = counter
       counter = counter + 1
 
