@@ -10,11 +10,21 @@
   "main": "./lib/ultra-sync",
   "version": "0.0.0",
   "description": "A short description of your package",
-  "keywords": [],
+  "keywords": ["ultra-sync", "scroll", "sync", "synchronization", "asciidoc", "asciidoctor", "markdown"],
   "activationCommands": {
     "atom-workspace": "ultra-sync:toggle"
   },
-  "repository": "https://github.com/atom/ultra-sync",
+    "author": {
+    "name": "Aakash Praliya",
+    "email": "aakashpraliya13@gmail.com"
+  },
+  "contributors": [
+    {
+      "name": "Aakash Praliya",
+      "email": "aakashpraliya13@gmail.com"
+    }
+  ],
+  "repository": "https://github.com/Aakash1312/ultra-sync",
   "license": "MIT",
   "engines": {
     "atom": ">=1.0.0 <2.0.0"
