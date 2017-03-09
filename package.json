@@ -1,5 +1,12 @@
 {
   "name": "ultra-sync",
+  "consumedServices": {
+    "status-bar": {
+      "versions": {
+        "^1.0.0": "consumeStatusBar"
+      }
+    }
+  },
   "main": "./lib/ultra-sync",
   "version": "0.0.0",
   "description": "A short description of your package",

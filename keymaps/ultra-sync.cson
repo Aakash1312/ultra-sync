@@ -8,4 +8,5 @@
 # For more detailed documentation see
 # https://atom.io/docs/latest/behind-atom-keymaps-in-depth
 'atom-workspace':
-  'ctrl-alt-o': 'ultra-sync:toggle'
+  'ctrl-alt-d': 'ultra-sync:on'
+  'ctrl-alt-e': 'ultra-sync:toggle'

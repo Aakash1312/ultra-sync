@@ -1,5 +1,30 @@
-# ultra-sync package
+# Ultra-Sync package
 
-A short description of your package.
+Ultra-Sync package synchronizes scrolling of **asciidoc** and **markdown** documents. It can also sync normal text files. The two files to be synced should be opened in two different panes. After syncing, the contents of the files will correspond to each other on scrolling.
 
-![A screenshot of your package](https://f.cloud.github.com/assets/69169/2290250/c35d867a-a017-11e3-86be-cd7c5bf3ff9b.gif)
+For ultra-sync package to deliver its best, it is required that documents are well written.
+
+**Syncing asciidoc document**
+
+![ascii-doc](https://github.com/Aakash1312/ultra-sync/blob/Aakash1312-patch-5/gifs/ascii.gif?raw=true)
+
+**Syncing markdown document**
+
+![ascii-doc](https://github.com/Aakash1312/ultra-sync/blob/Aakash1312-patch-5/gifs/markdown.gif?raw=true)
+
+**Syncing normal text document**
+
+![ascii-doc](https://github.com/Aakash1312/ultra-sync/blob/Aakash1312-patch-5/gifs/text.gif?raw=true)
+
+# How to use
+In order to use Ultra-Sync, open the documents to be synchronized in two different panes. Now toggle Ultra-Sync by pressing `ctrl-alt-e` or by using Packages menu in the atom window.
+Once toggled, documents can synchronized by pressing `ctrl-alt-d`.
+
+# Settings
+Ultra-Sync allows users to customize their experience. The package uses features like **autosync** to automatically synchronize scrolling as and when document is edited. Also, it uses **interpolation** technique to provide smoother scrolling.
+These features however may reduce the processing speed. In such cases, user can disable them.
+
+# Installation
+Ultra-Sync can be installed from atom packages. `apm` can also be used:
+
+`apm install ultra-sync`
