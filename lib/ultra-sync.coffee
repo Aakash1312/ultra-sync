@@ -32,6 +32,7 @@ module.exports = UltraSync =
       description: 'Sync automatically when document changes. May reduce speed.'
 
   activate: (state) ->
+    console.log "Activated"
     @mapLists = []
     @offsets = []
     @paneList =[]
@@ -46,6 +47,7 @@ module.exports = UltraSync =
     @subscriptions.add atom.workspace.observeActivePaneItem (pane) =>
       if pane?
         if atom.workspace.isTextEditor(pane)
+          console.log "Changed Editor"
           if not @isOnOtherSide[pane.id]?
             @editor = pane
             if @paneList[@editor.id] != @paneView and atom.views.getView(@paneList[@editor.id]) != @paneView
@@ -55,51 +57,67 @@ module.exports = UltraSync =
           else
             @paneView = atom.views.getView(pane)
         else
+          console.log "Changed Pane"
           if @isOnOtherSide[pane.id]?
             @paneView = atom.views.getView(pane)
             if @paneList[@editor.id] != @paneView and atom.views.getView(@paneList[@editor.id]) != @paneView
               @ultraSyncView.hide()
             else
               @ultraSyncView.show()
+    console.log "Applying status bar API"
     @consumeStatusBar()
+    console.log "Status bar API applied"
 
   consumeStatusBar: (statusBar) ->
+    console.log "Consuming status bar"
     if statusBar?
+      console.log "Status bar present"
       @sBar = statusBar
+      console.log "Consumed!!!"
 
   setStatusBar: () ->
+    console.log "Setting status bar"
     if @sBar?
       @ultraSyncView.destroy()
       @sBar.addRightTile(item: @ultraSyncView.getSynced(), priority: 1000)
 
   deactivate: ->
+    console.log "Deactivating ..."
     @subscriptions.dispose()
     @subscriptions2.dispose()
     @ultraSyncView.destroy()
+    console.log "Deactivated!!!"
 
   tempOFF: ->
+    console.log "Temporarily off"
     @subscriptions2.dispose()
     @ultraSyncView.destroy()
     @paneList = []
+    console.log "offed!!!"
 
   toggle: ->
     if @activated
+      console.log "off"
       @tempOFF()
       @activated = false
     else
+      console.log "on"
       @subscriptions2 = new CompositeDisposable
       @activated = true
 
   on: ->
+    console.log "Starting..."
     @editor = atom.workspace.getActiveTextEditor()
     if @editor?
       @editorView = atom.views.getView(@editor)
       panes = atom.workspace.getPanes()
       if panes.length > 1
+        console.log "Two panes found"
         @mapLists[@editor.id] = []
         @offsets[@editor.id] = []
         pane = panes[panes.length - 1].activeItem
         if atom.workspace.isTextEditor(pane)
+          console.log "Pane is editor"
           @isOnOtherSide[pane.id] = @editor
           @paneList[@editor.id] = pane
           @subscriptions2.add @editor.buffer.onDidStopChanging => @syncTextEditors()
@@ -122,10 +140,12 @@ module.exports = UltraSync =
           @sync()
 
   indirectSync: ->
+    console.log "indirect sync"
     if atom.config.get("ultra-sync.autosync")
       @sync()
     else
       @ultraSyncView.hide()
+    console.log "indirectly synced!!!"
 
   indirectSyncTextEditors: ->
     if atom.config.get("ultra-sync.autosync")
@@ -177,9 +197,11 @@ module.exports = UltraSync =
     return -1
 
   placeInNodes: (nodes, buf, length, i, isEditor) ->
+    console.log "Place in nodes"
     size = nodes.length
     counter = i
     while counter < size
+      console.log counter
       k = @checkIfNodeExists(nodes, length, counter, buf, isEditor)
       if k != -1
         return {"line":k; "node":counter}
@@ -187,6 +209,7 @@ module.exports = UltraSync =
     return null
 
   nearVision: (buf, i, nodes, isEditor) ->
+    console.log "Near Vision search"
     counter = i
     line = @editor.lineTextForBufferRow buf
     line = line?.replace(/(\<[^>]*\>)*/ig, '')
@@ -223,6 +246,7 @@ module.exports = UltraSync =
     return false
 
   checkIfNodeExists: (nodes, length, i, buf, isEditor) ->
+    console.log "Checking for node existence"
     if isEditor
       text = nodes[i].node
     else
@@ -253,12 +277,14 @@ module.exports = UltraSync =
           @mapLists[@editor.id][counter] = nodes[i]
           return counter
         if k >= 1
+          console.log "Complete match"
           @offsets[@editor.id][counter] = j/size
           lastSuccessful = counter
           j = k
           matchedWords = matchedWords + matches.length
           @mapLists[@editor.id][counter] = nodes[i]
         else
+          console.log "Match not found"
           if not @mapLists[@editor.id][counter]
             if matchedWords/size > 0.8
               if @nearVision(counter, i+1, nodes, isEditor)
@@ -266,6 +292,7 @@ module.exports = UltraSync =
             nullIterations = nullIterations + 1
             @mapLists[@editor.id][counter] = null
       else
+        console.log "NULL"
         @mapLists[@editor.id][counter] = -1
       counter = counter + 1
     if matchedWords/size > 0.8
@@ -273,6 +300,7 @@ module.exports = UltraSync =
     return -1
 
   cleanMapList: (nodes, isEditor)->
+    console.log "Cleaning map list..."
     counter = 0
     while @mapLists[@editor.id][counter] == -1 || @mapLists[@editor.id][counter] == null
       counter = counter + 1
@@ -284,6 +312,7 @@ module.exports = UltraSync =
     @stitchHoles(nodes, isEditor)
 
   syncTextEditors: ->
+    console.log "Syncing text editors"
     paneV = null
     if not @paneList[@editor.id]?
       if @isOnOtherSide[@editor.id]?
@@ -293,6 +322,7 @@ module.exports = UltraSync =
         return
     else
       paneV = @paneList[@editor.id]
+    console.log "Pane exists here"
     nodes = []
     nodeOrder = []
     @mapLists[@editor.id] = []
@@ -304,6 +334,7 @@ module.exports = UltraSync =
       nodes[lineCounter] = paneV.lineTextForBufferRow lineCounter
       lineCounter = lineCounter + 1
     countNodes = 0
+    console.log "Nodes are:"
     while countNodes < nodes.length
       element = {}
       element.id = countNodes
@@ -328,6 +359,7 @@ module.exports = UltraSync =
     @setStatusBar()
 
   sync: ->
+    console.log "Syncing..."
     if @paneList[@editor.id] == null or not @paneList[@editor.id]?
       @ultraSyncView.destroy()
       return
@@ -336,6 +368,7 @@ module.exports = UltraSync =
     @mapLists[@editor.id] = []
     @offsets[@editor.id] = []
     nodes = (div for div in @paneList[@editor.id].childNodes)[0...]
+    console.log "Nodes are:"
     countNodes = 0
     nodes = @cleanNodes(nodes)
     while countNodes < nodes.length
@@ -361,8 +394,10 @@ module.exports = UltraSync =
       @interpolate(nodes)
     # @synced = true
     @setStatusBar()
+    console.log "Synced!!"
 
   findHoles:(nodes) ->
+    console.log "Finding holes..."
     @holes = []
     size = @editor.getLastBufferRow() + 1
     counter = 0
@@ -389,8 +424,10 @@ module.exports = UltraSync =
             @mapLists[@editor.id][counter] = -1
         lastSuccessfulCounter = counter
       counter = counter + 1
+    console.log "Found holes!!!"
 
   stitchHoles:(nodes, isEditor) ->
+    console.log "Stitching holes!!"
     size = @editor.getLastBufferRow() + 1
     counter = 0
     while counter < size
@@ -422,8 +459,10 @@ module.exports = UltraSync =
         counter = obj['endRow']
       else
         counter = counter + 1
+    console.log "Stitched !!!"
 
   interpolate:(nodes) ->
+    console.log "Interpolating..."
     size = @mapLists[@editor.id].length
     counter = 1
     while counter < size
@@ -447,8 +486,10 @@ module.exports = UltraSync =
         counter = counter2 + iterator
       else
         counter = counter + 1
+    console.log "Interpolated!!!"
 
   cleanNodes:(nodes) ->
+    console.log "Cleaning nodes..."
     size = nodes.length
     tmpNodes = []
     i = 0
@@ -459,8 +500,10 @@ module.exports = UltraSync =
         k = k + 1
       i = i + 1
     return tmpNodes
+    console.log "Cleaned!!!"
 
   ultraSync: () ->
+    console.log "Scroll started"
     if @editor
       if atom.workspace.isTextEditor(@paneList[@editor.id])
         panes = atom.workspace.getPanes()
