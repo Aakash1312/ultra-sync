@@ -15,7 +15,12 @@
         {
           'label': 'Toggle'
           'command': 'ultra-sync:toggle'
+        },
+        {
+          'label': 'Sync'
+          'command': 'ultra-sync:on'
         }
+
       ]
     ]
   }
