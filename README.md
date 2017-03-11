@@ -26,6 +26,8 @@ Ultra-Sync allows users to customize their experience. The package uses features
 It uses **levenshtein** algorithm for strong matching. If strong matching is disabled, then matching of documents can be less accurate.
 These features however may reduce the processing speed. In such cases, user can disable them.
 
+There are two types of syncing available. **Pcapture sync** uses different method of node traversal. Hence it can sometimes produce better results.
+
 # Installation
 Ultra-Sync can be installed from atom packages. `apm` can also be used:
 
