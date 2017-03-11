@@ -23,6 +23,7 @@ Press `ctrl-alt-e` again to deactivate the package.
 
 # Settings
 Ultra-Sync allows users to customize their experience. The package uses features like **autosync** to automatically synchronize scrolling as and when document is edited. Also, it uses **interpolation** technique to provide smoother scrolling.
+It uses **levenshtein** algorithm for strong matching. If strong matching is disabled, then matching of documents can be less accurate.
 These features however may reduce the processing speed. In such cases, user can disable them.
 
 # Installation

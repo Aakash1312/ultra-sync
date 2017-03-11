@@ -30,6 +30,11 @@ module.exports = UltraSync =
       default:true
       title: 'Autosync'
       description: 'Sync automatically when document changes. May reduce speed.'
+    levenshtein:
+      type: 'boolean'
+      default:true
+      title: 'Strong Match'
+      description: 'Matching of lines will be more accurate. Can lead to reduction in speed'
 
   activate: (state) ->
     @mapLists = []
@@ -43,6 +48,7 @@ module.exports = UltraSync =
     # Register command that toggles this view
     @subscriptions.add atom.commands.add 'atom-workspace', 'ultra-sync:toggle': => @toggle()
     @subscriptions.add atom.commands.add 'atom-workspace', 'ultra-sync:on': => @on()
+    @subscriptions.add atom.commands.add 'atom-workspace', 'ultra-sync:onP': => @onP()
     @subscriptions.add atom.workspace.observeActivePaneItem (pane) =>
       if pane?
         if atom.workspace.isTextEditor(pane)
@@ -121,9 +127,46 @@ module.exports = UltraSync =
           # @synced = false
           @sync()
 
+  onP: ->
+    @editor = atom.workspace.getActiveTextEditor()
+    if @editor?
+      @editorView = atom.views.getView(@editor)
+      panes = atom.workspace.getPanes()
+      if panes.length > 1
+        @mapLists[@editor.id] = []
+        @offsets[@editor.id] = []
+        pane = panes[panes.length - 1].activeItem
+        if atom.workspace.isTextEditor(pane)
+          @isOnOtherSide[pane.id] = @editor
+          @paneList[@editor.id] = pane
+          @subscriptions2.add @editor.buffer.onDidStopChanging => @syncTextEditors()
+          @subscriptions2.add pane.buffer.onDidStopChanging => @syncTextEditors()
+          @paneView = atom.views.getView(pane)
+          @subscriptions2.add @editorView.onDidChangeScrollTop => @ultraSync()
+          @syncTextEditors()
+        else
+          @isOnOtherSide[pane.id] = 1
+          @paneList[@editor.id] = atom.views.getView(pane)
+          @paneView = atom.views.getView(pane)
+          config = { subtree: true, childList: true, characterData: true }
+          observer = new MutationObserver((mutation) => @indirectPSync() )
+          observer.observe(@paneView, config)
+          @subscriptions2.add @editorView.onDidChangeScrollTop => @ultraSync()
+          # @subscriptions2.add @editor.buffer.onDidStopChanging =>
+          #   if atom.config.get("ultra-sync.autosync")
+          #     @synced = false
+          # @synced = false
+          @syncP()
+
   indirectSync: ->
     if atom.config.get("ultra-sync.autosync")
       @sync()
+    else
+      @ultraSyncView.hide()
+
+  indirectPSync: ->
+    if atom.config.get("ultra-sync.autosync")
+      @syncP()
     else
       @ultraSyncView.hide()
 
@@ -147,6 +190,66 @@ module.exports = UltraSync =
               return j + size1 + iter
           iter = iter + 1
     return -1
+
+  matchWordsStrong: (A, B, textLine, textView, j) ->
+    if A? and B?
+      size1 = A.length
+      size2 = B.length
+      if j >= size2
+        return 0
+      else
+        iter = 0
+        while iter < 50 && j + iter + size1 < size2 + 1
+          BP = B.slice(j+iter,j+size1 + iter)
+          data = @levenshtein(A, BP)
+          if data/A.length < 0.2
+            return j + size1 + iter
+          iter = iter + 1
+      A = textLine.match /[A-Za-z]+/ig
+      B = textView.match /[A-Za-z]+/ig
+      if A? and B?
+        size3 = A.length
+        if size3/size1 > 0.3
+          size1 = size3
+          size2 = B.length
+          iter = 0
+          while iter < 50 && j + iter + size1 < size2 + 1
+            BP = B.slice(j+iter,j+size1 + iter)
+            data = @levenshtein(A, BP)
+            if data/A.length < 0.2
+              return j + size1 + iter
+            iter = iter + 1
+    return -1
+
+
+
+  levenshtein: (A, B) ->
+    # M = []
+    F = new Array(A.length + 1)
+    i = 0
+    while i < (A.length + 1)
+      F[i] = new Array(B.length+1)
+      i = i + 1
+    i = 0
+    while i < (A.length + 1)
+      F[i][0] = i
+      i = i + 1
+    i = 0
+    while i < (B.length + 1)
+      F[0][i] = i
+      i = i + 1
+    i = 1
+    while i < (A.length + 1)
+      j = 1
+      while j < (B.length + 1)
+        if A[i-1] == B[j-1]
+          l = 0
+        else
+          l = 1
+        F[i][j] = Math.min(F[i-1][j]+1, F[i][j-1]+1, F[i-1][j-1]+l)
+        j = j + 1
+      i = i + 1
+    return F[A.length][B.length]
 
   matchWordsLatest: (A, B, textLine, textView, j) ->
     if A? and B?
@@ -199,7 +302,10 @@ module.exports = UltraSync =
         text = nodes[counter].node.innerText
       text = text.replace(/(\<[^>]*\>)+/ig, '')
       matchesNode = text.match /[A-Za-z0-9]+/ig
-      k = @matchWordsLatest(matches, matchesNode, line, text, 0)
+      if  atom.config.get("ultra-sync.levenshtein")
+        k = @matchWordsStrong(matches, matchesNode, line, text, 0)
+      else
+        k = @matchWordsLatest(matches, matchesNode, line, text, 0)
       if k != -1
         j = 0
         giter = 0
@@ -211,7 +317,10 @@ module.exports = UltraSync =
           localLine = @editor.lineTextForBufferRow (buf + maxiter)
           localLine = localLine?.replace(/(\<[^>]*\>)*/ig, '')
           localMatches = localLine?.match /[A-Za-z0-9]+/ig
-          l = @matchWordsLatest(localMatches, matchesNode, localLine, text, j)
+          if atom.config.get("ultra-sync.levenshtein")
+            l = @matchWordsStrong(localMatches, matchesNode, localLine, text, j)
+          else
+            l = @matchWordsLatest(localMatches, matchesNode, localLine, text, j)
           if l >= size
             return true
           else
@@ -247,7 +356,10 @@ module.exports = UltraSync =
       line = line?.replace(/(\<[^>]*\>)*/ig, '')
       matches = line?.match /[A-Za-z0-9]+/ig
       if matches
-        k = @matchWordsLatest(matches, matches2, line, text, j)
+        if  atom.config.get("ultra-sync.levenshtein")
+          k = @matchWordsStrong(matches, matches2, line, text, j)
+        else
+          k = @matchWordsLatest(matches, matches2, line, text, j)
         if k >= size
           @offsets[@editor.id][counter] = j/size
           @mapLists[@editor.id][counter] = nodes[i]
@@ -336,6 +448,41 @@ module.exports = UltraSync =
     @mapLists[@editor.id] = []
     @offsets[@editor.id] = []
     nodes = (div for div in @paneList[@editor.id].childNodes)[0...]
+    countNodes = 0
+    nodes = @cleanNodes(nodes)
+    while countNodes < nodes.length
+      element = {}
+      element.id = countNodes
+      element.node = nodes[countNodes]
+      nodeOrder.push(element)
+      countNodes = countNodes + 1
+    nodes = nodeOrder
+    countLines = 0
+    buf = 0
+    i = 0
+    lineSize = @editor.getLastBufferRow() + 1
+    while buf < lineSize
+      check = @placeInNodes(nodes, buf, @editor.getLastBufferRow() + 1, i, false)
+      if check
+        i = check["node"]
+        buf = check["line"]
+        i = i + 1
+      buf = buf + 1
+    @cleanMapList(nodes, false)
+    if atom.config.get("ultra-sync.interpolate")
+      @interpolate(nodes)
+    # @synced = true
+    @setStatusBar()
+
+  syncP: ->
+    if @paneList[@editor.id] == null or not @paneList[@editor.id]?
+      @ultraSyncView.destroy()
+      return
+    nodes = []
+    nodeOrder = []
+    @mapLists[@editor.id] = []
+    @offsets[@editor.id] = []
+    nodes = (div for div in $(@paneList[@editor.id]).find("P"))[0...]
     countNodes = 0
     nodes = @cleanNodes(nodes)
     while countNodes < nodes.length

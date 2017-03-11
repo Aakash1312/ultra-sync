@@ -19,6 +19,10 @@
         {
           'label': 'Sync'
           'command': 'ultra-sync:on'
+        },
+        {
+          'label': 'Pcapture Sync'
+          'command': 'ultra-sync:onP'
         }
 
       ]

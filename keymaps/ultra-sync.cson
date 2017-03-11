@@ -10,3 +10,4 @@
 'atom-workspace':
   'ctrl-alt-d': 'ultra-sync:on'
   'ctrl-alt-e': 'ultra-sync:toggle'
+  'ctrl-alt-q': 'ultra-sync:onP'
